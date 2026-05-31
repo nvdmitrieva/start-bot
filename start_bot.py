@@ -454,7 +454,6 @@ async def go_back(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     start_dt = datetime.strptime(member["start_date"], "%Y-%m-%d").date()
     current_day = min((date.today() - start_dt).days + 1, 30)
 
-    keyboard = [
     await query.edit_message_text(
         f"🎮 *СТАРТ — Моя игра, мой старт*\n\nДень *{current_day} из 30*. Выбери действие:",
         parse_mode="Markdown",
