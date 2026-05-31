@@ -89,6 +89,7 @@ DAILY_TASKS = {
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "ВСТАВЬ_ТОКЕН_СЮДА")
 DATA_FILE = "data.json"
+ADMIN_ID = 6910384882
 
 logging.basicConfig(level=logging.INFO)
 
@@ -429,6 +430,53 @@ async def kb_add_save(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ── /team — общая статистика команды ─────────────────────────────────────────
 
+async def cmd_admin(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("У тебя нет доступа к этой команде.")
+        return
+
+    data = load_data()
+    members = data.get("members", {})
+    if not members:
+        await update.message.reply_text("Участников пока нет.")
+        return
+
+    for uid, m in members.items():
+        start_dt = datetime.strptime(m["start_date"], "%Y-%m-%d").date()
+        current_day = min((date.today() - start_dt).days + 1, 30)
+        done = len(m.get("completed_days", []))
+        streak = m.get("streak", 0)
+        activators = m.get("activators", 0)
+        contacts = m.get("contacts", 0)
+        meet1 = m.get("meet1", 0)
+        meet2 = m.get("meet2", 0)
+        invites = m.get("invites", 0)
+        came = m.get("came", 0)
+        partners = m.get("partners", 0)
+        clients = m.get("clients", 0)
+
+        # Последняя активность
+        last_day = max(m.get("completed_days", ["—"])) if m.get("completed_days") else "—"
+
+        text = (
+            f"👤 *{m['name']}*\n"
+            f"Telegram ID: `{uid}`\n"
+            f"Старт: {m['start_date']} · День {current_day}/30\n"
+            f"Последняя активность: {last_day}\n\n"
+            f"✅ Микрошаги: {done}/30\n"
+            f"🔥 Серия: {streak} дней\n"
+            f"🏆 Активаторы: {activators}\n\n"
+            f"*Воронка:*\n"
+            f"📞 Контакты: {contacts}\n"
+            f"🤝 Встречи 1:1: {meet1} · 2:1: {meet2}\n"
+            f"📨 Приглашения: {invites}\n"
+            f"🎤 Пришло: {came}\n"
+            f"🤝 Партнёры: {partners}\n"
+            f"🛍 Клиенты: {clients}"
+        )
+        await update.message.reply_text(text, parse_mode="Markdown")
+
+
 async def cmd_team(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     data = load_data()
     members = data.get("members", {})
@@ -635,6 +683,7 @@ def main():
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("team", cmd_team))
+    app.add_handler(CommandHandler("admin", cmd_admin))
     app.add_handler(CommandHandler("zadanie", cmd_zadanie))
 
     # Утренняя рассылка в 9:00 по Москве (UTC+3 = 06:00 UTC)
