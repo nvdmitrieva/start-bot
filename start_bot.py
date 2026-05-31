@@ -205,6 +205,8 @@ def main_menu_keyboard():
         [InlineKeyboardButton("🤝 Регистрация партнёр", callback_data="stat_partner"),
          InlineKeyboardButton("🛍 Регистрация клиент", callback_data="stat_client")],
         [InlineKeyboardButton("📓 Записать победу дня", callback_data="diary")],
+        [InlineKeyboardButton("🧠 ИИ-Коуч", url="https://chatgpt.com/g/g-6a16e919103c819194d07d642d4897b0-ii-kouch"),
+         InlineKeyboardButton("🤖 Помощник партнёра", url="https://chatgpt.com/g/g-68752fa0d6e08191a9a82c4506f374f5-pomoshchnik-partneru-pm")],
         [InlineKeyboardButton("📚 База знаний", callback_data="kb_menu"),
          InlineKeyboardButton("📊 Мой прогресс", callback_data="progress")],
     ])
