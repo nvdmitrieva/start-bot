@@ -144,6 +144,7 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
 
     keyboard = [
+        [InlineKeyboardButton("🎯 Задание дня", callback_data="zadanie")],
         [InlineKeyboardButton("✅ Отметить микрошаг дня", callback_data="check_step")],
         [InlineKeyboardButton("📸 +1 Instagram-действие", callback_data="add_post")],
         [InlineKeyboardButton("📓 Записать победу дня", callback_data="diary")],
@@ -255,9 +256,24 @@ async def diary_save(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     }
     member.setdefault("diary", []).append(entry)
     save_data(data)
+
+    start_dt = datetime.strptime(member["start_date"], "%Y-%m-%d").date()
+    current_day = min((date.today() - start_dt).days + 1, 30)
+
+    keyboard = [
+        [InlineKeyboardButton("🎯 Задание дня", callback_data="zadanie")],
+        [InlineKeyboardButton("✅ Отметить микрошаг дня", callback_data="check_step")],
+        [InlineKeyboardButton("📸 +1 Instagram-действие", callback_data="add_post")],
+        [InlineKeyboardButton("📓 Записать победу дня", callback_data="diary")],
+        [InlineKeyboardButton("📋 Мои задачи", callback_data="tasks")],
+        [InlineKeyboardButton("📚 База знаний", callback_data="kb_menu")],
+        [InlineKeyboardButton("📊 Мой прогресс", callback_data="progress")],
+    ]
     await update.message.reply_text(
-        f"✨ *Победа записана!*\n\n_{entry['text']}_\n\nУдачи завтра!",
-        parse_mode="Markdown"
+        f"✨ *Победа записана!*\n\n_{entry['text']}_\n\nУдачи завтра! 💪\n\n"
+        f"*День {current_day} из 30* — выбери следующее действие:",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return ConversationHandler.END
 
@@ -304,9 +320,11 @@ async def task_add_save(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     }
     data.setdefault("tasks", []).append(task)
     save_data(data)
+    keyboard = [[InlineKeyboardButton("← В главное меню", callback_data="back")]]
     await update.message.reply_text(
         f"✅ Задача добавлена:\n_{task['text']}_",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return ConversationHandler.END
 
@@ -361,9 +379,11 @@ async def kb_add_save(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     }
     data.setdefault("knowledge_base", []).append(entry)
     save_data(data)
+    keyboard = [[InlineKeyboardButton("← В главное меню", callback_data="back")]]
     await update.message.reply_text(
         f"📚 Запись добавлена:\n*{title}* — _{tag}_",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return ConversationHandler.END
 
@@ -400,6 +420,7 @@ async def go_back(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     current_day = min((date.today() - start_dt).days + 1, 30)
 
     keyboard = [
+        [InlineKeyboardButton("🎯 Задание дня", callback_data="zadanie")],
         [InlineKeyboardButton("✅ Отметить микрошаг дня", callback_data="check_step")],
         [InlineKeyboardButton("📸 +1 Instagram-действие", callback_data="add_post")],
         [InlineKeyboardButton("📓 Записать победу дня", callback_data="diary")],
@@ -428,7 +449,7 @@ async def cmd_zadanie(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     start_dt = datetime.strptime(member["start_date"], "%Y-%m-%d").date()
     current_day = min((date.today() - start_dt).days + 1, 30)
 
-    pm_task, ig_task = DAILY_TASKS.get(current_day, ("Все 30 дней пройдены!", ""))
+    pm_task, ig_task = DAILY_TASKS.get(current_day, ("Все 30 дней пройдены! 🎉", ""))
 
     text = (
         f"🎯 *День {current_day} из 30*\n\n"
@@ -436,6 +457,25 @@ async def cmd_zadanie(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"{ig_task}"
     )
     await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def show_zadanie(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = load_data()
+    member = get_member(data, query.from_user.id, query.from_user.first_name)
+
+    start_dt = datetime.strptime(member["start_date"], "%Y-%m-%d").date()
+    current_day = min((date.today() - start_dt).days + 1, 30)
+
+    pm_task, ig_task = DAILY_TASKS.get(current_day, ("Все 30 дней пройдены! 🎉", ""))
+
+    text = (
+        f"🎯 *День {current_day} из 30*\n\n"
+        f"{pm_task}\n\n"
+        f"{ig_task}"
+    )
+    await query.edit_message_text(text, parse_mode="Markdown", reply_markup=back_keyboard())
 
 
 # ── Утренняя рассылка в 9:00 ─────────────────────────────────────────────────
@@ -490,6 +530,7 @@ def main():
     app.add_handler(diary_conv)
     app.add_handler(kb_conv)
     app.add_handler(task_conv)
+    app.add_handler(CallbackQueryHandler(show_zadanie, pattern="^zadanie$"))
     app.add_handler(CallbackQueryHandler(show_progress, pattern="^progress$"))
     app.add_handler(CallbackQueryHandler(check_step, pattern="^check_step$"))
     app.add_handler(CallbackQueryHandler(add_post, pattern="^add_post$"))
