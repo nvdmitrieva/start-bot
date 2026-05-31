@@ -169,6 +169,8 @@ async def show_progress(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     meet2 = member.get("meet2", 0)
     invites = member.get("invites", 0)
     came = member.get("came", 0)
+    partners = member.get("partners", 0)
+    clients = member.get("clients", 0)
     bar_done = "🟩" * done_days + "⬜" * (30 - done_days)
 
     text = (
@@ -182,8 +184,10 @@ async def show_progress(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"🤝 Встречи 1:1: {meet1}\n"
         f"👥 Встречи 2:1: {meet2}\n"
         f"📨 Приглашения: {invites}\n"
-        f"🎤 Пришло: {came}\n\n"
-        f"*30 дней:*\n{bar_done[:30]}"
+        f"🎤 Пришло: {came}\n"
+        f"🤝 Партнёры: {partners}\n"
+        f"🛍 Клиенты: {clients}\n\n"
+        f"*30 дней:*\n{bar_done}"
     )
     await query.edit_message_text(text, parse_mode="Markdown",
                                   reply_markup=back_keyboard())
@@ -198,6 +202,8 @@ def main_menu_keyboard():
         [InlineKeyboardButton("👥 Встреча 2:1", callback_data="stat_meet2"),
          InlineKeyboardButton("📨 Приглашение на презентацию", callback_data="stat_invite")],
         [InlineKeyboardButton("🎤 Пришло на презентацию", callback_data="stat_came")],
+        [InlineKeyboardButton("🤝 Регистрация партнёр", callback_data="stat_partner"),
+         InlineKeyboardButton("🛍 Регистрация клиент", callback_data="stat_client")],
         [InlineKeyboardButton("📓 Записать победу дня", callback_data="diary")],
         [InlineKeyboardButton("📚 База знаний", callback_data="kb_menu"),
          InlineKeyboardButton("📊 Мой прогресс", callback_data="progress")],
@@ -242,6 +248,8 @@ STAT_CONFIG = {
     "stat_meet2":    ("👥", "Встреча 2:1 отмечена!", "meet2", "встреч 2:1"),
     "stat_invite":   ("📨", "Приглашение отправлено!", "invites", "приглашений на презентацию"),
     "stat_came":     ("🎤", "Участник отмечен!", "came", "пришло на презентацию"),
+    "stat_partner":  ("🤝", "Партнёр зарегистрирован! 🎉", "partners", "партнёров"),
+    "stat_client":   ("🛍", "Клиент зарегистрирован! 🎉", "clients", "клиентов"),
 }
 
 async def add_stat(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -434,9 +442,11 @@ async def cmd_team(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         contacts = m.get("contacts", 0)
         invites = m.get("invites", 0)
         came = m.get("came", 0)
+        partners = m.get("partners", 0)
+        clients = m.get("clients", 0)
         lines.append(
-            f"*{m['name']}* — {done}/30 шагов · {streak}🔥 · {activators}🏆\n"
-            f"  📞{contacts} · 📨{invites} · 🎤{came}"
+            f"*{m['name']}* — {done}/30 · {streak}🔥 · {activators}🏆\n"
+            f"  📞{contacts} · 📨{invites} · 🎤{came} · 🤝{partners} · 🛍{clients}"
         )
 
     await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
