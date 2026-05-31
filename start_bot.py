@@ -123,7 +123,7 @@ def get_member(data: dict, user_id: int, name: str) -> dict:
 
 
 # ── Состояния ConversationHandler ─────────────────────────────────────────────
-DIARY_WAITING, KB_WAITING, TASK_WAITING = range(3)
+DIARY_WAITING, KB_WAITING, TASK_WAITING, REPORT_WAITING = range(4)
 
 
 # ── /start ────────────────────────────────────────────────────────────────────
@@ -172,6 +172,7 @@ async def show_progress(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     posts = member["posts_count"]
     streak = member["streak"]
 
+    activators = member.get("activators", 0)
     bar_done = "🟩" * done_days + "⬜" * (30 - done_days)
 
     text = (
@@ -179,7 +180,8 @@ async def show_progress(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"День: {current_day}/30\n"
         f"Микрошаги: {done_days}/30\n"
         f"Instagram-действия: {posts}\n"
-        f"Серия дней: {streak} 🔥\n\n"
+        f"Серия дней: {streak} 🔥\n"
+        f"Активаторы: {activators} 🏆\n\n"
         f"*30 дней:*\n{bar_done[:30]}"
     )
     await query.edit_message_text(text, parse_mode="Markdown",
@@ -459,6 +461,13 @@ async def cmd_zadanie(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode="Markdown")
 
 
+def zadanie_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📤 Отчитаться о выполнении", callback_data="report")],
+        [InlineKeyboardButton("← Назад", callback_data="back")],
+    ])
+
+
 async def show_zadanie(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -475,7 +484,76 @@ async def show_zadanie(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"{pm_task}\n\n"
         f"{ig_task}"
     )
-    await query.edit_message_text(text, parse_mode="Markdown", reply_markup=back_keyboard())
+    await query.edit_message_text(text, parse_mode="Markdown", reply_markup=zadanie_keyboard())
+
+
+# ── Отчёт о выполнении ────────────────────────────────────────────────────────
+
+ENCOURAGEMENTS = [
+    "Ты сделала это! Один шаг — и ты уже не та, что вчера.",
+    "Вот это движение! Именно так строится результат — день за днём.",
+    "Гордись собой. Сегодня ты выбрала действие вместо откладывания.",
+    "Это и есть настоящая игра. Ты в ней!",
+    "Каждый шаг считается. Этот — тоже.",
+    "Сделала — значит растёшь. Так и работает система.",
+    "Один день — один шаг. И ты его сделала. Это всё, что нужно.",
+]
+
+import random
+
+async def report_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text(
+        "📤 *Отчёт о выполнении*\n\n"
+        "Пришли скрин выполненного задания или ссылку на пост в Instagram:",
+        parse_mode="Markdown"
+    )
+    return REPORT_WAITING
+
+
+async def report_save(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    data = load_data()
+    user = update.effective_user
+    member = get_member(data, user.id, user.first_name)
+
+    start_dt = datetime.strptime(member["start_date"], "%Y-%m-%d").date()
+    current_day = min((date.today() - start_dt).days + 1, 30)
+
+    # Сохраняем отчёт
+    report = {
+        "date": str(date.today()),
+        "day": current_day,
+        "type": "photo" if update.message.photo else "text",
+        "content": update.message.caption or update.message.text or "скрин"
+    }
+    member.setdefault("reports", []).append(report)
+
+    # Начисляем активатор
+    member["activators"] = member.get("activators", 0) + 1
+    save_data(data)
+
+    encouragement = random.choice(ENCOURAGEMENTS)
+    total = member["activators"]
+
+    main_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🎯 Задание дня", callback_data="zadanie")],
+        [InlineKeyboardButton("✅ Отметить микрошаг дня", callback_data="check_step")],
+        [InlineKeyboardButton("📸 +1 Instagram-действие", callback_data="add_post")],
+        [InlineKeyboardButton("📓 Записать победу дня", callback_data="diary")],
+        [InlineKeyboardButton("📋 Мои задачи", callback_data="tasks")],
+        [InlineKeyboardButton("📚 База знаний", callback_data="kb_menu")],
+        [InlineKeyboardButton("📊 Мой прогресс", callback_data="progress")],
+    ])
+
+    await update.message.reply_text(
+        f"🏆 *+1 Активатор!* Всего: {total} 🔥\n\n"
+        f"_{encouragement}_\n\n"
+        f"*День {current_day} из 30* — что дальше?",
+        parse_mode="Markdown",
+        reply_markup=main_keyboard
+    )
+    return ConversationHandler.END
 
 
 # ── Утренняя рассылка в 9:00 ─────────────────────────────────────────────────
@@ -505,6 +583,13 @@ async def morning_broadcast(ctx: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
+    report_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(report_start, pattern="^report$")],
+        states={REPORT_WAITING: [
+            MessageHandler(filters.PHOTO | filters.TEXT & ~filters.COMMAND, report_save)
+        ]},
+        fallbacks=[CommandHandler("cancel", cancel)],
+    )
     diary_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(diary_start, pattern="^diary$")],
         states={DIARY_WAITING: [MessageHandler(filters.TEXT & ~filters.COMMAND, diary_save)]},
@@ -527,6 +612,7 @@ def main():
 
     # Утренняя рассылка в 9:00 по Москве (UTC+3 = 06:00 UTC)
     app.job_queue.run_daily(morning_broadcast, time=time(6, 0))
+    app.add_handler(report_conv)
     app.add_handler(diary_conv)
     app.add_handler(kb_conv)
     app.add_handler(task_conv)
