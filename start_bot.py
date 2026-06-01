@@ -124,7 +124,7 @@ def get_member(data: dict, user_id: int, name: str) -> dict:
 
 
 # ── Состояния ConversationHandler ─────────────────────────────────────────────
-DIARY_WAITING, KB_WAITING, TASK_WAITING, REPORT_WAITING = range(4)
+DIARY_WAITING, KB_WAITING, TASK_WAITING, REPORT_WAITING, STAT_WAITING = range(5)
 
 
 # ── /start ────────────────────────────────────────────────────────────────────
@@ -261,17 +261,41 @@ async def add_stat(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     action = query.data
     emoji, title, key, label = STAT_CONFIG[action]
 
+    ctx.user_data["stat_action"] = action
+    await query.edit_message_text(
+        f"{emoji} *{title}*\n\nСколько? Напиши цифру:",
+        parse_mode="Markdown"
+    )
+    return STAT_WAITING
+
+
+async def stat_save(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    if not text.isdigit() or int(text) < 1:
+        await update.message.reply_text("Напиши число, например: 2")
+        return STAT_WAITING
+
+    count = int(text)
+    action = ctx.user_data.get("stat_action")
+    emoji, title, key, label = STAT_CONFIG[action]
+
     data = load_data()
-    member = get_member(data, query.from_user.id, query.from_user.first_name)
-    member[key] = member.get(key, 0) + 1
+    member = get_member(data, update.effective_user.id, update.effective_user.first_name)
+    member[key] = member.get(key, 0) + count
+    member["activators"] = member.get("activators", 0) + count
     save_data(data)
 
-    text = (
-        f"{emoji} *{title}*\n\n"
-        f"Всего {label}: {member[key]}"
+    total_key = member[key]
+    total_act = member["activators"]
+
+    await update.message.reply_text(
+        f"{emoji} *+{count} {label}!*\n"
+        f"Всего {label}: {total_key}\n\n"
+        f"🏆 *+{count} активаторов!* Всего: {total_act}",
+        parse_mode="Markdown",
+        reply_markup=main_menu_keyboard()
     )
-    await query.edit_message_text(text, parse_mode="Markdown",
-                                  reply_markup=back_keyboard())
+    return ConversationHandler.END
 
 
 # ── Дневник победы ────────────────────────────────────────────────────────────
@@ -658,6 +682,11 @@ async def morning_broadcast(ctx: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
+    stat_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(add_stat, pattern="^stat_")],
+        states={STAT_WAITING: [MessageHandler(filters.TEXT & ~filters.COMMAND, stat_save)]},
+        fallbacks=[CommandHandler("cancel", cancel)],
+    )
     report_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(report_start, pattern="^report$")],
         states={REPORT_WAITING: [
@@ -688,6 +717,7 @@ def main():
 
     # Утренняя рассылка в 9:00 по Москве (UTC+3 = 06:00 UTC)
     app.job_queue.run_daily(morning_broadcast, time=time(6, 0))
+    app.add_handler(stat_conv)
     app.add_handler(report_conv)
     app.add_handler(diary_conv)
     app.add_handler(kb_conv)
@@ -695,7 +725,7 @@ def main():
     app.add_handler(CallbackQueryHandler(show_zadanie, pattern="^zadanie$"))
     app.add_handler(CallbackQueryHandler(show_progress, pattern="^progress$"))
     app.add_handler(CallbackQueryHandler(check_step, pattern="^check_step$"))
-    app.add_handler(CallbackQueryHandler(add_stat, pattern="^stat_"))
+
     app.add_handler(CallbackQueryHandler(show_tasks, pattern="^tasks$"))
     app.add_handler(CallbackQueryHandler(kb_menu, pattern="^kb_menu$"))
     app.add_handler(CallbackQueryHandler(go_back, pattern="^back$"))
