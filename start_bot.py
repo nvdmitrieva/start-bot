@@ -93,7 +93,7 @@ BOT_TOKEN   = os.environ.get("BOT_TOKEN", "ВСТАВЬ_ТОКЕН_СЮДА")
 JSONBIN_KEY = os.environ.get("JSONBIN_KEY", "")   # X-Master-Key от jsonbin.io
 JSONBIN_BIN = os.environ.get("JSONBIN_BIN", "")   # ID созданного бина
 DATA_FILE   = "data.json"                          # локальный fallback
-ADMIN_ID    = int(os.environ.get("ADMIN_ID", "6910384882"))
+ADMIN_ID    = int(os.environ.get("ADMIN_ID", "180068454"))
 
 logging.basicConfig(level=logging.INFO)
 
