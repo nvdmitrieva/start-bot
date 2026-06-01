@@ -187,9 +187,14 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     current_day = (date.today() - start_dt).days + 1
     current_day = min(current_day, 30)
 
+    pm_task, ig_task = DAILY_TASKS.get(current_day, ("Все 30 дней пройдены! 🎉", ""))
+
     text = (
-        f"🎮 *СТАРТ — Моя игра, мой старт*\n\n"
-        f"Привет, {member['name']}! Сегодня *день {current_day} из 30*.\n\n"
+        f"☀️ *День {current_day} из 30* — привет, {member['name']}!\n\n"
+        f"*Твоё задание сегодня:*\n\n"
+        f"{pm_task}\n\n"
+        f"{ig_task}\n\n"
+        f"─────────────────\n"
         f"Выбери действие:"
     )
 
