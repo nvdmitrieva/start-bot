@@ -16,6 +16,8 @@ Telegram-бот «СТАРТ — Моя игра, мой старт»
 import json
 import os
 import logging
+import urllib.request
+import urllib.error
 from datetime import date, datetime, time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -87,23 +89,58 @@ DAILY_TASKS = {
          "📸 Пост итогов 30 дней. Честно, с цифрами. Это твой самый сильный контент."),
 }
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "ВСТАВЬ_ТОКЕН_СЮДА")
-DATA_FILE = "data.json"
-ADMIN_ID = 6910384882
+BOT_TOKEN   = os.environ.get("BOT_TOKEN", "ВСТАВЬ_ТОКЕН_СЮДА")
+JSONBIN_KEY = os.environ.get("JSONBIN_KEY", "")   # X-Master-Key от jsonbin.io
+JSONBIN_BIN = os.environ.get("JSONBIN_BIN", "")   # ID созданного бина
+DATA_FILE   = "data.json"                          # локальный fallback
+ADMIN_ID    = int(os.environ.get("ADMIN_ID", "6910384882"))
 
 logging.basicConfig(level=logging.INFO)
 
 
-# ── Хранилище данных (файл JSON) ──────────────────────────────────────────────
+# ── Хранилище данных (JSONBin.io или локальный файл) ─────────────────────────
+
+EMPTY_DATA = {"members": {}, "knowledge_base": [], "tasks": []}
+
 
 def load_data() -> dict:
+    # Пробуем JSONBin
+    if JSONBIN_KEY and JSONBIN_BIN:
+        try:
+            req = urllib.request.Request(
+                f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN}/latest",
+                headers={"X-Master-Key": JSONBIN_KEY}
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read())["record"]
+        except Exception as e:
+            logging.warning(f"JSONBin load error: {e}")
+    # Fallback — локальный файл
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    return {"members": {}, "knowledge_base": [], "tasks": []}
+    return dict(EMPTY_DATA)
 
 
 def save_data(data: dict):
+    # Сохраняем в JSONBin
+    if JSONBIN_KEY and JSONBIN_BIN:
+        try:
+            payload = json.dumps(data).encode("utf-8")
+            req = urllib.request.Request(
+                f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN}",
+                data=payload,
+                headers={
+                    "X-Master-Key": JSONBIN_KEY,
+                    "Content-Type": "application/json"
+                },
+                method="PUT"
+            )
+            urllib.request.urlopen(req, timeout=10)
+            return
+        except Exception as e:
+            logging.warning(f"JSONBin save error: {e}")
+    # Fallback — локальный файл
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -127,9 +164,21 @@ def get_member(data: dict, user_id: int, name: str) -> dict:
 DIARY_WAITING, KB_WAITING, TASK_WAITING, REPORT_WAITING, STAT_WAITING = range(5)
 
 
+# ── /myid — показать свой Telegram ID ────────────────────────────────────────
+
+async def cmd_myid(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    await update.message.reply_text(
+        f"Твой Telegram ID: `{uid}`\n\nЕсли /admin не работает — пришли этот ID мне.",
+        parse_mode="Markdown"
+    )
+
+
 # ── /start ────────────────────────────────────────────────────────────────────
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    # Сбрасываем любой активный диалог
+    ctx.user_data.clear()
     data = load_data()
     user = update.effective_user
     member = get_member(data, user.id, user.first_name)
@@ -711,6 +760,7 @@ def main():
     )
 
     app.add_handler(CommandHandler("start", cmd_start))
+    app.add_handler(CommandHandler("myid", cmd_myid))
     app.add_handler(CommandHandler("team", cmd_team))
     app.add_handler(CommandHandler("admin", cmd_admin))
     app.add_handler(CommandHandler("zadanie", cmd_zadanie))
